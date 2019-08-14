@@ -40,6 +40,7 @@ return [
     ],
 
     'all_middleware' => [
+        'firewall.captcha',
         'firewall.agent',
         'firewall.lfi',
         'firewall.php',
@@ -53,6 +54,17 @@ return [
     ],
 
     'middleware' => [
+
+        'captcha' => [
+            'enabled'   => false,
+
+            'methods' => ['all'],
+
+            'routes' => [
+                'only' => [], // i.e. 'contact'
+                'except' => [], // i.e. 'admin/*'
+            ],
+        ],
 
         'agent' => [
             'methods' => ['all'],

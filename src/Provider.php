@@ -55,8 +55,8 @@ class Provider extends ServiceProvider
     public function registerMiddleware($router)
     {
         $router->middlewareGroup('firewall.all', config('firewall.all_middleware'));
+        $router->aliasMiddleware('firewall.captcha', 'Akaunting\Firewall\Middleware\Captcha');
         $router->aliasMiddleware('firewall.agent', 'Akaunting\Firewall\Middleware\Agent');
-        $router->aliasMiddleware('firewall.geo', 'Akaunting\Firewall\Middleware\Geo');
         $router->aliasMiddleware('firewall.lfi', 'Akaunting\Firewall\Middleware\Lfi');
         $router->aliasMiddleware('firewall.php', 'Akaunting\Firewall\Middleware\Php');
         $router->aliasMiddleware('firewall.referrer', 'Akaunting\Firewall\Middleware\Referrer');

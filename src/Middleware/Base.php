@@ -7,7 +7,7 @@ use Akaunting\Firewall\Models\Log;
 use Closure;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Str;
+
 
 abstract class Base
 {
@@ -25,6 +25,8 @@ abstract class Base
      */
     public function handle($request, Closure $next)
     {
+        $this->request = $request;
+
         if ($this->skip($request)) {
             return $next($request);
         }
@@ -33,65 +35,6 @@ abstract class Base
             return $this->respond(config('firewall.responses.block'));
         }
 
-        /**
-         *  Check config if captcha is Enabled
-         */
-        if (! (bool) config('app.captcha_enabled', true)) {
-            return $next($request);
-        }
-
-        if (! Str::contains($request->path(), ['captcha', 'admin', 'settings'])) {
-
-            /**
-             *  Reflash session in order to keep data
-             */
-            $request->session()->reflash();
-            $uri = md5($request->fullUrl());
-            $expire = 0; // 0 seconds
-            $hash = $uri . '|' . time();
-
-            if (blank(session('captcha_DDOS'))) {
-                session(['captcha_DDOS' => $hash]);
-                session()->save();
-            }
-
-            $expired = explode('|', session('captcha_DDOS'));
-
-            if ($expired[0] === $uri && time() - (int) $expired[1] < $expire) {
-                if (! auth()->guest()) {
-                    auth()->logout();
-                }
-                session()->forget('captcha_DDOS');
-                cookie()->forget('XSRF-TOKEN');
-                cookie()->forget('laravel_session');
-                cookie()->forget('captcha_ddos');
-                session()->put('captcha_DDOS', $hash);
-                session()->save();
-                header('HTTP/1.1 503 Service Unavailable');
-                die('<h1>HTTP/1.1 503 Service Unavailable</h1><a type="button" href="/">Return to homepage</a>');
-            }
-
-            /**
-             *  Save request data
-             */
-            session()->put('captcha_DDOS', $hash);
-            session()->save();
-        }
-
-        if ($request->path() !== 'cheer' && $request->path() !== 'captcha/ddos') {
-
-            /**
-             *  Regenerate session data otherwise flush it
-             */
-            session()->regenerate();
-            $cookie = $request->cookie('captcha_ddos');
-
-            if ($cookie === "passed") {
-                return $next($request);
-            } else {
-                return redirect()->to('/captcha');
-            }
-        }
 
         return $next($request);
     }
@@ -178,7 +121,7 @@ abstract class Base
         $log = null;
 
         foreach ($patterns as $pattern) {
-            if (!$match = $this->match($pattern, $this->input)) {
+            if (!$match = $this->match($pattern, $this->input, $this->request)) {
                 continue;
             }
 
