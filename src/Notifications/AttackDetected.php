@@ -67,7 +67,6 @@ class AttackDetected extends Notification implements ShouldQueue
         $message = trans('firewall::notifications.mail.message', [
             'domain' => $domain,
             'middleware' => ucfirst($this->log->middleware),
-            'ip' => $this->log->ip,
             'url' => $this->log->url,
         ]);
 
@@ -96,7 +95,7 @@ class AttackDetected extends Notification implements ShouldQueue
             ->content($message)
             ->attachment(function ($attachment) {
                 $attachment->fields([
-                    'IP' => $this->log->ip,
+                    'IP' => null,
                     'Type' => ucfirst($this->log->middleware),
                     'User ID' => $this->log->user_id,
                     'URL' => $this->log->url,

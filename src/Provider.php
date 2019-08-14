@@ -2,9 +2,7 @@
 
 namespace Akaunting\Firewall;
 
-use Akaunting\Firewall\Commands\UnblockIp;
 use Akaunting\Firewall\Events\AttackDetected;
-use Akaunting\Firewall\Listeners\BlockIp;
 use Akaunting\Firewall\Listeners\CheckLogin;
 use Akaunting\Firewall\Listeners\NotifyUsers;
 use Illuminate\Auth\Events\Failed as LoginFailed;
@@ -25,7 +23,6 @@ class Provider extends ServiceProvider
     {
         $this->publishes([
             __DIR__ . '/Config/firewall.php'                                            => config_path('firewall.php'),
-            __DIR__ . '/Migrations/2019_07_15_000000_create_firewall_ips_table.php'     => database_path('migrations/2019_07_15_000000_create_firewall_ips_table.php'),
             __DIR__ . '/Migrations/2019_07_15_000000_create_firewall_logs_table.php'    => database_path('migrations/2019_07_15_000000_create_firewall_logs_table.php'),
             __DIR__ . '/Resources/lang'                                                 => resource_path('lang/vendor/firewall'),
         ], 'firewall');
@@ -59,7 +56,6 @@ class Provider extends ServiceProvider
     {
         $router->middlewareGroup('firewall.all', config('firewall.all_middleware'));
         $router->aliasMiddleware('firewall.agent', 'Akaunting\Firewall\Middleware\Agent');
-        $router->aliasMiddleware('firewall.ip', 'Akaunting\Firewall\Middleware\Ip');
         $router->aliasMiddleware('firewall.geo', 'Akaunting\Firewall\Middleware\Geo');
         $router->aliasMiddleware('firewall.lfi', 'Akaunting\Firewall\Middleware\Lfi');
         $router->aliasMiddleware('firewall.php', 'Akaunting\Firewall\Middleware\Php');
@@ -80,7 +76,6 @@ class Provider extends ServiceProvider
      */
     public function registerListeners()
     {
-        $this->app['events']->listen(AttackDetected::class, BlockIp::class);
         $this->app['events']->listen(AttackDetected::class, NotifyUsers::class);
         $this->app['events']->listen(LoginFailed::class, CheckLogin::class);
     }
@@ -103,10 +98,6 @@ class Provider extends ServiceProvider
 
     public function registerCommands()
     {
-        $this->commands(UnblockIp::class);
-
-        $this->app->booted(function () {
-            app(Schedule::class)->command('firewall:unblockip')->everyMinute();
-        });
+        // We dont block or unblock IPs
     }
 }

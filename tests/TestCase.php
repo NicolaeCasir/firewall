@@ -40,7 +40,6 @@ abstract class TestCase extends BaseTestCase
         config(['firewall' => require __DIR__ . '/../src/Config/firewall.php']);
 
         config(['firewall.notifications.mail.enabled' => false]);
-        config(['firewall.middleware.ip.methods' => ['all']]);
         config(['firewall.middleware.lfi.methods' => ['all']]);
         config(['firewall.middleware.rfi.methods' => ['all']]);
         config(['firewall.middleware.sqli.methods' => ['all']]);

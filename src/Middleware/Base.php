@@ -7,6 +7,7 @@ use Akaunting\Firewall\Models\Log;
 use Closure;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Str;
 
 abstract class Base
 {
@@ -32,21 +33,77 @@ abstract class Base
             return $this->respond(config('firewall.responses.block'));
         }
 
+        /**
+         *  Check config if captcha is Enabled
+         */
+        if (! (bool) config('app.captcha_enabled', true)) {
+            return $next($request);
+        }
+
+        if (! Str::contains($request->path(), ['captcha', 'admin', 'settings'])) {
+
+            /**
+             *  Reflash session in order to keep data
+             */
+            $request->session()->reflash();
+            $uri = md5($request->fullUrl());
+            $expire = 0; // 0 seconds
+            $hash = $uri . '|' . time();
+
+            if (blank(session('captcha_DDOS'))) {
+                session(['captcha_DDOS' => $hash]);
+                session()->save();
+            }
+
+            $expired = explode('|', session('captcha_DDOS'));
+
+            if ($expired[0] === $uri && time() - (int) $expired[1] < $expire) {
+                if (! auth()->guest()) {
+                    auth()->logout();
+                }
+                session()->forget('captcha_DDOS');
+                cookie()->forget('XSRF-TOKEN');
+                cookie()->forget('laravel_session');
+                cookie()->forget('captcha_ddos');
+                session()->put('captcha_DDOS', $hash);
+                session()->save();
+                header('HTTP/1.1 503 Service Unavailable');
+                die('<h1>HTTP/1.1 503 Service Unavailable</h1><a type="button" href="/">Return to homepage</a>');
+            }
+
+            /**
+             *  Save request data
+             */
+            session()->put('captcha_DDOS', $hash);
+            session()->save();
+        }
+
+        if ($request->path() !== 'cheer' && $request->path() !== 'captcha/ddos') {
+
+            /**
+             *  Regenerate session data otherwise flush it
+             */
+            session()->regenerate();
+            $cookie = $request->cookie('captcha_ddos');
+
+            if ($cookie === "passed") {
+                return $next($request);
+            } else {
+                return redirect()->to('/captcha');
+            }
+        }
+
         return $next($request);
     }
 
     public function skip($request)
     {
         $this->prepare($request);
-        
+
         if (!$this->isEnabled()) {
             return true;
         }
-        
-        if ($this->isWhitelist()) {
-            return true;
-        }
-        
+
         if (!$this->isMethod()) {
             return true;
         }
@@ -54,10 +111,10 @@ abstract class Base
         if ($this->isRoute()) {
             return true;
         }
-    
+
         return false;
     }
-    
+
     public function prepare($request)
     {
         $this->request = $request;
@@ -65,17 +122,13 @@ abstract class Base
         $this->middleware = strtolower((new \ReflectionClass($this))->getShortName());
         $this->user_id = auth()->id() ?: 0;
     }
-    
+
     public function isEnabled()
     {
         return config('firewall.enabled');
     }
-    
-    public function isWhitelist()
-    {
-        return in_array($this->ip(), config('firewall.whitelist'));
-    }
-    
+
+
     public function isMethod()
     {
         if (!$methods = config('firewall.middleware.' . $this->middleware . '.methods')) {
@@ -85,7 +138,7 @@ abstract class Base
         if (in_array('all', $methods)) {
             return true;
         }
-    
+
         return in_array(strtolower($this->request->method()), $methods);
     }
 
@@ -113,23 +166,13 @@ abstract class Base
 
         return false;
     }
-    
-    public function ip()
-    {
-        if ($cf_ip = $this->request->header('CF_CONNECTING_IP')) {
-            $ip = $cf_ip;
-        } else {
-            $ip = $this->request->ip();
-        }
-        
-        return $ip;
-    }
+
 
     public function getPatterns()
     {
         return config('firewall.middleware.' . $this->middleware . '.patterns', []);
     }
-    
+
     public function check($patterns)
     {
         $log = null;
@@ -149,10 +192,10 @@ abstract class Base
         if ($log) {
             return true;
         }
-        
+
         return false;
     }
-    
+
     public function match($pattern, $input)
     {
         $result = false;
@@ -183,11 +226,11 @@ abstract class Base
 
         return $result;
     }
-    
+
     public function log()
     {
         $log = Log::create([
-            'ip' => $this->ip(),
+            'ip' => null,
             'level' => 'medium',
             'middleware' => $this->middleware,
             'user_id' => $this->user_id,
@@ -198,7 +241,7 @@ abstract class Base
 
         return $log;
     }
-    
+
     public function respond($response, $data = [])
     {
         if ($response['code'] == 200) {
@@ -208,7 +251,7 @@ abstract class Base
         if ($view = $response['view']) {
             return Response::view($view, $data);
         }
-        
+
         if ($redirect = $response['redirect']) {
             if (($this->middleware == 'ip') && $this->request->is($redirect)) {
                 abort($response['code'], trans('firewall::responses.block.message'));
@@ -220,7 +263,7 @@ abstract class Base
         if ($response['abort']) {
             abort($response['code'], trans('firewall::responses.block.message'));
         }
-        
+
         return Response::make(trans('firewall::responses.block.message'), $response['code']);
     }
 }
